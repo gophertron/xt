@@ -32,11 +32,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// io.Copy(conn, os.Stdin)
-
-	fmt.Println(flag.NArg())
-	fmt.Println(flag.Args())
-
 	if flag.NArg() == 0 {
 		// read from stdin -> chunked transfer if http else copy
 		if *httpHeaders {
@@ -78,7 +73,7 @@ func copyWithHeaders(w io.Writer, names []string) {
 	fmt.Fprint(w, "Connection: keep-alive\r\n")
 	fmt.Fprint(w, "Server: xt\r\n")
 	fmt.Fprintf(w, "Date: %s\r\n", time.Now().String())
-	fmt.Fprint(w, "Content-Type: text/plain\r\n")
+	fmt.Fprintf(w, "Content-Type: %s\r\n", formatToMimeType(*format))
 	fmt.Fprintf(w, "Content-Length: %d\r\n\r\n", computeContentLength(names))
 	copyWithoutHeaders(w, names)
 }
@@ -98,4 +93,21 @@ func computeContentLength(names []string) int64 {
 	}
 
 	return sz
+}
+
+func formatToMimeType(f string) string {
+	switch f {
+	case "text":
+		return "text/plain"
+	case "binary":
+		return "application/octet-stream"
+	case "html":
+		return "text/html"
+	case "json":
+		return "application/json"
+	case "xml":
+		return "application/xml"
+	default:
+		return "text/plain"
+	}
 }
