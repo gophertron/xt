@@ -5,8 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"time"
+)
+
+const (
+	ctOctetString = "application/octet-stream"
 )
 
 var (
@@ -14,6 +19,7 @@ var (
 	port        = flag.Int("p", 8080, "port to listen to")
 	httpHeaders = flag.Bool("w", false, "send http headers before the data")
 	format      = flag.String("f", "text", "specify the content type (text|binary|html|json|xml)")
+	guessFormat = flag.Bool("l", false, "try to geess the content type form the data")
 )
 
 func main() {
@@ -69,11 +75,20 @@ func copyChunkedWithHeaders(w io.Writer, r io.Reader) {
 }
 
 func copyWithHeaders(w io.Writer, names []string) {
+
+	var contentType string
+
+	if *guessFormat {
+		contentType = guessMimeType(names[0])
+	} else {
+		contentType = formatToMimeType(*format)
+	}
+
 	fmt.Fprint(w, "HTTP/1.1 200 OK\r\n")
 	fmt.Fprint(w, "Connection: keep-alive\r\n")
 	fmt.Fprint(w, "Server: xt\r\n")
 	fmt.Fprintf(w, "Date: %s\r\n", time.Now().String())
-	fmt.Fprintf(w, "Content-Type: %s\r\n", formatToMimeType(*format))
+	fmt.Fprintf(w, "Content-Type: %s\r\n", contentType)
 	fmt.Fprintf(w, "Content-Length: %d\r\n\r\n", computeContentLength(names))
 	copyWithoutHeaders(w, names)
 }
@@ -100,7 +115,7 @@ func formatToMimeType(f string) string {
 	case "text":
 		return "text/plain"
 	case "binary":
-		return "application/octet-stream"
+		return ctOctetString
 	case "html":
 		return "text/html"
 	case "json":
@@ -110,4 +125,20 @@ func formatToMimeType(f string) string {
 	default:
 		return "text/plain"
 	}
+}
+
+func guessMimeType(fname string) string {
+	data := make([]byte, 512)
+	f, err := os.Open(fname)
+
+	if err != nil {
+		return ctOctetString
+	}
+	_, err = f.Read(data)
+
+	if err != nil {
+		return ctOctetString
+	}
+
+	return http.DetectContentType(data)
 }
